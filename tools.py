@@ -2,6 +2,7 @@ import math
 import numpy as np
 import pandas as pd
 import sys
+import os
 
 
 def add_ones(array):
@@ -117,6 +118,13 @@ class NN:
                 self.activations.append(sigmoid(add_ones(self.layers[i-1])))
                 # print(self.activations[i].shape)
 
+    def submit(self, data):
+        self.forward_propagation(data)
+        submission = pd.Series([max_index(self.activations[-1][i, :]) for i in range(self.activations[-1].shape[0])])
+        submission = pd.DataFrame({"ImageId":np.arange(1, 28001), "Label":submission})
+        submission.to_csv('/Users/vladikturin/Desktop/pycharm_projects/recognition/submit.csv', index=False)
+
+
     def mini_batch_back_propagation(self, epochs, alpha, lmbda, batch_size):
         # This is a "mini-batch" gradient descent algorithm. This means that on an iteration we calculate the error on
         # batches and after that we adjust the weights according to the error of this batch
@@ -149,6 +157,8 @@ class NN:
                 # the hypothesis(self.activations[-1]) and the rights results(self.train_results)
                 self.layer_errors[-1] = self.activations[-1][i:i+batch_size, :] - self.train_results[i:i+batch_size, :]
 
+                # Here we compute the layer errors. It means that we have to change the result in a layer by a
+                # particular amount
                 for t in range(len(self.activations)-3, -1, -1):
                     if t == len(self.activations)-3:
                         _ = np.matmul(self.layer_errors[t+1], np.transpose(self.weights[t+1]))
@@ -158,16 +168,18 @@ class NN:
                         _ = np.matmul(self.layer_errors[t+1][:, 1:], np.transpose(self.weights[t+1]))
                         self.layer_errors[t] = _ * sigmoid_derivative(add_ones(self.layers[t][i:i+batch_size]))
 
+                # Here we compute how we should change the weights
                 for t in range(len(self.delta_weights)):
                     if t == len(self.delta_weights) - 1:
                         h = np.transpose(np.matmul(np.transpose(self.layer_errors[t]), self.activations[t][i:i + batch_size, :]))
-                        self.delta_weights[t] += h + self.weights[t] / batch_size
+                        self.delta_weights[t] += h + self.weights[t] / self.train_data.shape[0]
                     else:
                         h = np.transpose(np.matmul(np.transpose(self.layer_errors[t][:, 1:]), self.activations[t][i:i + batch_size, :]))
-                        self.delta_weights[t] += h + lmbda * self.weights[t] / batch_size
+                        self.delta_weights[t] += h + lmbda * self.weights[t] / self.train_data.shape[0]
 
+            # Here we change the weights by alpha * delta_weights
             for t in range(len(self.delta_weights)):
-                self.weights[t] -= alpha * self.delta_weights[t] / 100
+                self.weights[t] -= alpha * self.delta_weights[t] / (self.train_data.shape[0] / batch_size)
 
         return errors
 
@@ -200,7 +212,8 @@ class NN:
             # the hypothesis(self.activations[-1]) and the rights results(self.train_results)
             self.layer_errors[-1] = self.activations[-1] - self.train_results
 
-            # Here we compute
+            # Here we compute the layer errors. It means that we have to change the result in a layer by a
+            # particular amount
             for t in range(len(self.activations) - 3, -1, -1):
                 if t == len(self.activations) - 3:
                     _ = np.matmul(self.layer_errors[t + 1], np.transpose(self.weights[t + 1]))
@@ -210,18 +223,79 @@ class NN:
                     _ = np.matmul(self.layer_errors[t + 1][:, 1:], np.transpose(self.weights[t + 1]))
                     self.layer_errors[t] = _ * sigmoid_derivative(add_ones(self.layers[t]))
 
+            # Here we compute how we should change the weights
             for t in range(len(self.delta_weights)):
                 if t == len(self.delta_weights) - 1:
                     h = np.transpose(np.matmul(np.transpose(self.layer_errors[t]), self.activations[t]))
-                    self.delta_weights[t] += h + self.weights[t]
+                    self.delta_weights[t] += h + lmbda * self.weights[t] / self.train_data.shape[0]
                 else:
                     h = np.transpose(
                         np.matmul(np.transpose(self.layer_errors[t][:, 1:]), self.activations[t]))
-                    self.delta_weights[t] += h + lmbda * self.weights[t]
+                    self.delta_weights[t] += h + lmbda * self.weights[t] / self.train_data.shape[0]
 
+            # Here we change the weights by alpha * delta_weights
             for t in range(len(self.delta_weights)):
                 self.weights[t] -= alpha * self.delta_weights[t]
 
         self.forward_propagation(self.test_data)
         print(mistakes(self.activations[-1], self.real_test_results))
         return errors
+
+    def get_result(self, alpha, lmbda, batch_size, n):
+        j = 0
+        self.forward_propagation(self.test_data)
+        sys.stdout.write(f"Epoch: {j}, error: {logistic_cost(self.activations[-1], self.test_results)}\n")
+        # sys.stdout.write(self.hypothesis[0, :])
+        sys.stdout.flush()
+
+        while logistic_cost(self.activations[-1], self.test_results) > n or math.isnan(logistic_cost(self.activations[-1], self.test_results)):
+
+            # We collect the info about delta_weights
+            self.delta_weights = [np.zeros(el.shape) for el in self.weights]
+
+            self.forward_propagation(self.train_data)
+
+            for i in range(0, int(self.train_data.shape[0]), batch_size):
+
+                # On every iteration we calculate the errors in layers, that is why on every iteration we should
+                # clear the information about the errors and set it to zero
+                self.layer_errors = [0 for el in self.weights]
+
+                # The output error(which is the last error in self.layer_errors) is calculated as the difference between
+                # the hypothesis(self.activations[-1]) and the rights results(self.train_results)
+                self.layer_errors[-1] = self.activations[-1][i:i+batch_size, :] - self.train_results[i:i+batch_size, :]
+
+                # Here we compute the layer errors. It means that we have to change the result in a layer by a
+                # particular amount
+                for t in range(len(self.activations) - 3, -1, -1):
+                    if t == len(self.activations) - 3:
+                        _ = np.matmul(self.layer_errors[t + 1], np.transpose(self.weights[t + 1]))
+                        self.layer_errors[t] = _ * sigmoid_derivative(add_ones(self.layers[t][i:i + batch_size]))
+
+                    else:
+                        _ = np.matmul(self.layer_errors[t + 1][:, 1:], np.transpose(self.weights[t + 1]))
+                        self.layer_errors[t] = _ * sigmoid_derivative(add_ones(self.layers[t][i:i + batch_size]))
+
+                    # Here we compute how we should change the weights
+                for t in range(len(self.delta_weights)):
+                    if t == len(self.delta_weights) - 1:
+                        h = np.transpose(
+                            np.matmul(np.transpose(self.layer_errors[t]), self.activations[t][i:i + batch_size, :]))
+                        self.delta_weights[t] += h + self.weights[t] / self.train_data.shape[0]
+                    else:
+                        h = np.transpose(np.matmul(np.transpose(self.layer_errors[t][:, 1:]),
+                                                   self.activations[t][i:i + batch_size, :]))
+                        self.delta_weights[t] += h + lmbda * self.weights[t] / self.train_data.shape[0]
+
+                    # Here we change the weights by alpha * delta_weights
+                for t in range(len(self.delta_weights)):
+                    self.weights[t] -= alpha * self.delta_weights[t] / (self.train_data.shape[0] / batch_size)
+
+            j += 1
+            self.forward_propagation(self.test_data)
+            sys.stdout.write(f"Epoch: {j}, error: {logistic_cost(self.activations[-1], self.test_results)}\n")
+            # sys.stdout.write(self.hypothesis[0, :])
+            sys.stdout.flush()
+
+        print(mistakes(self.activations[-1], self.real_test_results))
+
