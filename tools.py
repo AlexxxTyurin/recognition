@@ -30,7 +30,8 @@ def gradient_descent(x, y, theta, alpha, num_iter):
 
 # Counts the cost function
 def logistic_cost(hypothesis, real_results):
-    return -sum(sum(real_results * np.log(hypothesis) + (1 - real_results) * np.log(1 - hypothesis))) / hypothesis.shape[0]
+    return -sum(sum(real_results * np.log(hypothesis) + (1 - real_results) * np.log(1 - hypothesis))) / \
+           hypothesis.shape[0]
 
 
 def max_index(mass):
@@ -44,8 +45,11 @@ def max_index(mass):
 
 
 def mean(array):
-    array = np.array(array)
-    return sum(sum(array)) / (array.shape[0] * array.shape[1])
+    try:
+        array = np.array(array)
+        return sum(sum(array)) / (array.shape[0] * array.shape[1])
+    except TypeError:
+        return sum(array) / len(array)
 
 
 def mistakes(hypothesis, real_results):
@@ -65,22 +69,25 @@ def sigmoid_derivative(x):
 
 
 # Counts the cost function with regularization
-def reg_logistic_cost(hypothesis, real_results, weights_1, weights_2):
-    return -sum(sum(real_results * np.log(hypothesis) + (1 - real_results) * np.log(1 - hypothesis))) / hypothesis.shape[0] + sum(sum(weights_1)) + sum(sum(weights_2))
+def reg_logistic_cost(hypothesis, real_results, weights_container):
+    weights_cost = sum([sum(sum(el)) for el in weights_container]) + hypothesis.shape[0]
+    return -sum(sum(real_results * np.log(hypothesis) + (1 - real_results) * np.log(1 - hypothesis))) / hypothesis.shape[0] + weights_cost
 
 
-# Neural network cost function.
-def nn_cost(output_layer, actual_results):
-    cost = 0
-    for i in range(output_layer.shape[0]):
-        cost += np.matmul(np.log(output_layer[i, :]), actual_results) - np.matmul(np.log(1 - output_layer[i, :]), (1 - actual_results))
-    return cost
+def element_svm_negative_cost(hypothesis):
+    if hypothesis <= -1:
+        return 0
+    else:
+        return 3 + 3 * hypothesis
 
 
 def variance(array):
-    array = np.array(array)
-    mean = sum(sum(array)) / (array.shape[0] * array.shape[1])
-    return sum(sum((array - mean)**2)) / (array.shape[0] * array.shape[1])
+    try:
+        array = np.array(array)
+        m = mean(array)
+        return sum(sum((array - m)**2)) / (array.shape[0] * array.shape[1])
+    except TypeError:
+        return sum((array - m) ** 2) / len(array)
 
 
 def generate_weights(numbers):
@@ -298,4 +305,74 @@ class NN:
             sys.stdout.flush()
 
         print(mistakes(self.activations[-1], self.real_test_results))
+
+
+class SVM:
+    def __init__(self, train_data, test_data, train_results, test_results, weights, similarities):
+        self.train_data = train_data
+        self.test_data = test_data
+        self.train_results = train_results
+        self.test_results = test_results
+        self.weights = weights
+        self.similarities = similarities
+        self.hypothesis = np.matmul(self.similarities, weights)
+
+    def element_svm_positive_cost(self, k, b):
+        # Create a DataFrame containing the numbers and the cost value corresponding to numbers
+        hypothesis = pd.DataFrame({"Numbers": pd.Series(self.hypothesis.flatten()),
+                                   "Values": pd.Series(np.zeros([self.hypothesis.shape[0]]))})
+
+        # Here we set the values of cost for numbers in this collection
+        hypothesis["Values"][hypothesis["Numbers"] >= 1] = 0
+        hypothesis["Values"][hypothesis["Numbers"] < 1] = b - k * hypothesis["Numbers"]
+
+        h = np.array(hypothesis["Values"])
+        return np.reshape(h, [h.shape[0], 1])
+
+    def element_svm_negative_cost(self, k, b):
+        # Create a DataFrame containing the numbers and the cost value corresponding to numbers
+        hypothesis = pd.DataFrame({"Numbers": pd.Series(self.hypothesis.flatten()),
+                                   "Values": pd.Series(np.zeros([self.hypothesis.shape[0]]))})
+
+        # Here we set the values of cost for numbers in this collection
+        hypothesis["Values"][hypothesis["Numbers"] <= -1] = 0
+        hypothesis["Values"][hypothesis["Numbers"] > -1] = b + k * hypothesis["Numbers"]
+
+        h = np.array(hypothesis["Values"])
+        return np.reshape(h, [h.shape[0], 1])
+
+    def regularised_svm_cost(self, k, b):
+        weights_cost = sum(self.weights) / self.weights.shape[0]
+
+        return sum(sum(self.train_results * self.element_svm_positive_cost(k, b) + (1 - self.train_results) * self.element_svm_negative_cost(k, b))) / self.train_results.shape[0] + weights_cost
+
+    def svm_gradient(self, k, b):
+        m = pd.Series((self.train_results * self.element_svm_positive_cost(k, b) + (1 - self.train_results) * self.element_svm_negative_cost(k, b)).flatten())
+        derivative = pd.Series(np.zeros([self.train_results.shape[0]]))
+        h = pd.DataFrame({"Costs": m, "Results": pd.Series(self.train_results.flatten()), "Derivative": derivative})
+
+        h["Derivative"][(h.Costs != 0.0) & (h.Results == 0.0)] = k
+        h["Derivative"][(h.Costs != 0.0) & (h.Results == 1.1)] = -k
+
+        k = np.reshape(np.array(h.Derivative), [self.train_data.shape[0], 1])
+        return np.transpose(np.matmul(np.transpose(k), self.similarities))
+
+    def svm_gradient_descent(self, k, b, threshold, alpha):
+        print(self.regularised_svm_cost(k, b))
+        while self.regularised_svm_cost(k, b) > threshold:
+            self.weights -= self.svm_gradient(k, b) * alpha / self.train_data.shape[0]
+            self.hypothesis = np.matmul(self.similarities, self.weights)
+            print(self.regularised_svm_cost(k, b))
+
+        # results = pd.DataFrame({"Hypothesis": pd.Series(self.hypothesis.flatten()), "Result": pd.Series(np.zeros([self.hypothesis.shape[0]]))})
+        # results.Result[results.Hypothesis >= 1] = 1
+        n = 0
+        for i in range(self.hypothesis.shape[0]):
+
+            if self.hypothesis[i][0] >= 1 and self.train_results[i][0] == 1.0:
+                n += 1
+            elif self.hypothesis[i][0] < 1 and self.train_results[i][0] == 0.0:
+                n += 1
+
+        print(n/self.train_results.shape[0])
 
