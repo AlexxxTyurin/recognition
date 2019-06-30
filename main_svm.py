@@ -25,14 +25,6 @@ if __name__ == '__main__':
     train_results = results[0:int(0.8 * results.shape[0]), :]
     test_results = results[int(0.8 * results.shape[0]):, :]
 
-    # weights = generate_weights([[785, 300], [301, 100], [101, 10]])
-    # weights = generate_weights([[785, 300], [301, 150], [151, 70], [71, 10]])
-    weights = generate_weights([[785, 100], [101, 10]])
-    a = NN(train_data, test_data, train_results, test_results, weights)
-    # a.mini_batch_back_propagation(10000, 0.001, 200, 100)
+    weights = np.random.sample([])
 
-    a.get_result(0.001, 50, 100, 0.8)
-
-    # Now we are going to check our results on another test set
-    # a.submit(c)
-
+    a = SVM()

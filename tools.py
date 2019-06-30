@@ -308,14 +308,26 @@ class NN:
 
 
 class SVM:
-    def __init__(self, train_data, test_data, train_results, test_results, weights, similarities):
+    def __init__(self, train_data, test_data, train_results, test_results, sigma):
         self.train_data = train_data
         self.test_data = test_data
         self.train_results = train_results
         self.test_results = test_results
-        self.weights = weights
-        self.similarities = similarities
-        self.hypothesis = np.matmul(self.similarities, weights)
+        self.train_weights = np.random.sample([self.train_data.shape[0], 1])
+        self.test_weights = np.random.sample([self.test_data.shape[0], 1])
+        self.similarities = self.similarities()
+        self.train_hypothesis = np.matmul(self.similarities, self.train_weights)
+        self.test_hypothesis = np.matmul(self.similarities, self.test_weights)
+
+    def similarities(self):
+        data = np.array([train_data[i, :] for _ in range(train_data.shape[0]) for i in range(train_data.shape[0])])
+        landmark = np.array([train_data[i, :] for i in range(train_data.shape[0]) for _ in range(train_data.shape[0])])
+
+        # Secondly, we calculate the similarities vector and then we reshape it
+        similarities = np.array(
+            [sum(np.exp(((data[i, :] - landmark[i, :]) ** 2) / (-2 * 1))) for i in range(data.shape[0])])
+        similarities = np.reshape(similarities, [train_data.shape[0], train_data.shape[0]])
+
 
     def element_svm_positive_cost(self, k, b):
         # Create a DataFrame containing the numbers and the cost value corresponding to numbers
