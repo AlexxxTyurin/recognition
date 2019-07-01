@@ -5,8 +5,8 @@ from tools import *
 # from matplotlib import pyplot as plt
 
 if __name__ == '__main__':
-    b = pd.read_csv('/Users/vladikturin/Desktop/pycharm_projects/recognition/train.csv')
-    c = pd.read_csv('/Users/vladikturin/Desktop/pycharm_projects/recognition/test.csv')
+    b = pd.read_csv('/Users/alextyurin/Desktop/pycharm_projects/recognition/train.csv')
+    c = pd.read_csv('/Users/alextyurin/Desktop/pycharm_projects/recognition/test.csv')
     c = np.array(c)
     c = (c - mean(c)) / (variance(c) ** 0.5)
     c = add_ones(c)
@@ -28,7 +28,7 @@ if __name__ == '__main__':
 
     # Create an object of SVM class
     a = SVM(train_data, test_data, train_results, test_results, 2, 100)
-    a.svm_gradient_descent(3, 3, 500000, 10)
+    a.svm_gradient_descent(3, 3, 280, 0.0001)
     # print(a.regularised_svm_cost(3, 3,))
 
 

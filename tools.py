@@ -313,12 +313,20 @@ class SVM:
         self.test_data = test_data
         # self.train_results = train_results[:size, :]
         self.train_results = np.array([np.eye(10)[el, :] for el in train_results[:size, 0]])
+        self.train_results_flattened = train_results
         self.test_results = test_results[:size, :]
         self.train_weights = np.random.sample([size, 10])
         self.sigma = sigma
         self.size = size
         self.similarities = self.similarities()
         self.train_hypothesis = np.matmul(self.similarities, self.train_weights)
+
+    def right_results(self):
+        n = 0
+        for i in range(self.train_hypothesis.shape[0]):
+            if max_index(self.train_hypothesis[i, :]) == self.train_results_flattened[i]:
+                n += 1
+        return n / self.train_hypothesis.shape[0]
 
     def similarities(self):
         data = np.array([self.train_data[i, :] for _ in range(self.size) for i in range(self.size)])
@@ -374,18 +382,12 @@ class SVM:
 
     def svm_gradient_descent(self, k, b, threshold, alpha):
         print(self.regularised_svm_cost(k, b))
+        index = 1
         while self.regularised_svm_cost(k, b) > threshold:
             self.train_weights -= self.svm_gradient(k, b) * alpha / self.train_data.shape[0]
-            self.hypothesis = np.matmul(self.similarities, self.train_weights)
-            print(self.regularised_svm_cost(k, b))
+            self.train_hypothesis = np.matmul(self.similarities, self.train_weights)
+            print(f"Epoch: {index}, cost: {self.regularised_svm_cost(k, b)}")
 
-        n = 0
-        for i in range(self.hypothesis.shape[0]):
-
-            if self.hypothesis[i][0] >= 1 and self.train_results[i][0] == 1.0:
-                n += 1
-            elif self.hypothesis[i][0] < 1 and self.train_results[i][0] == 0.0:
-                n += 1
-
-        print(n/self.train_results.shape[0])
+        print(self.right_results())
+        print(self.train_hypothesis)
 
