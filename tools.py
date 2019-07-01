@@ -308,53 +308,54 @@ class NN:
 
 
 class SVM:
-    def __init__(self, train_data, test_data, train_results, test_results, sigma):
+    def __init__(self, train_data, test_data, train_results, test_results, sigma, size):
         self.train_data = train_data
         self.test_data = test_data
-        self.train_results = train_results
-        self.test_results = test_results
-        self.train_weights = np.random.sample([self.train_data.shape[0], 1])
-        self.test_weights = np.random.sample([self.test_data.shape[0], 1])
+        # self.train_results = train_results[:size, :]
+        self.train_results = np.array([np.eye(10)[el, :] for el in train_results[:size, 0]])
+        self.test_results = test_results[:size, :]
+        self.train_weights = np.random.sample([size, 10])
+        self.sigma = sigma
+        self.size = size
         self.similarities = self.similarities()
         self.train_hypothesis = np.matmul(self.similarities, self.train_weights)
-        self.test_hypothesis = np.matmul(self.similarities, self.test_weights)
 
     def similarities(self):
-        data = np.array([train_data[i, :] for _ in range(train_data.shape[0]) for i in range(train_data.shape[0])])
-        landmark = np.array([train_data[i, :] for i in range(train_data.shape[0]) for _ in range(train_data.shape[0])])
+        data = np.array([self.train_data[i, :] for _ in range(self.size) for i in range(self.size)])
+        landmark = np.array([self.train_data[i, :] for i in range(self.size) for _ in range(self.size)])
 
         # Secondly, we calculate the similarities vector and then we reshape it
         similarities = np.array(
-            [sum(np.exp(((data[i, :] - landmark[i, :]) ** 2) / (-2 * 1))) for i in range(data.shape[0])])
-        similarities = np.reshape(similarities, [train_data.shape[0], train_data.shape[0]])
-
+            [sum(np.exp(((data[i, :] - landmark[i, :]) ** 2) / (-2 * self.sigma))) for i in range(data.shape[0])])
+        similarities = np.reshape(similarities, [self.size, self.size])
+        return similarities
 
     def element_svm_positive_cost(self, k, b):
         # Create a DataFrame containing the numbers and the cost value corresponding to numbers
-        hypothesis = pd.DataFrame({"Numbers": pd.Series(self.hypothesis.flatten()),
-                                   "Values": pd.Series(np.zeros([self.hypothesis.shape[0]]))})
+        hypothesis = pd.DataFrame({"Numbers": pd.Series(self.train_hypothesis.flatten()),
+                                   "Values": pd.Series(np.zeros([self.train_hypothesis.shape[0]]))})
 
         # Here we set the values of cost for numbers in this collection
         hypothesis["Values"][hypothesis["Numbers"] >= 1] = 0
         hypothesis["Values"][hypothesis["Numbers"] < 1] = b - k * hypothesis["Numbers"]
 
         h = np.array(hypothesis["Values"])
-        return np.reshape(h, [h.shape[0], 1])
+        return np.reshape(h, [self.size, 10])
 
     def element_svm_negative_cost(self, k, b):
         # Create a DataFrame containing the numbers and the cost value corresponding to numbers
-        hypothesis = pd.DataFrame({"Numbers": pd.Series(self.hypothesis.flatten()),
-                                   "Values": pd.Series(np.zeros([self.hypothesis.shape[0]]))})
+        hypothesis = pd.DataFrame({"Numbers": pd.Series(self.train_hypothesis.flatten()),
+                                   "Values": pd.Series(np.zeros([self.train_hypothesis.shape[0]]))})
 
         # Here we set the values of cost for numbers in this collection
         hypothesis["Values"][hypothesis["Numbers"] <= -1] = 0
         hypothesis["Values"][hypothesis["Numbers"] > -1] = b + k * hypothesis["Numbers"]
 
         h = np.array(hypothesis["Values"])
-        return np.reshape(h, [h.shape[0], 1])
+        return np.reshape(h, [self.size, 10])
 
     def regularised_svm_cost(self, k, b):
-        weights_cost = sum(self.weights) / self.weights.shape[0]
+        weights_cost = sum(sum(self.train_weights) / self.train_weights.shape[0])
 
         return sum(sum(self.train_results * self.element_svm_positive_cost(k, b) + (1 - self.train_results) * self.element_svm_negative_cost(k, b))) / self.train_results.shape[0] + weights_cost
 
@@ -364,20 +365,20 @@ class SVM:
         h = pd.DataFrame({"Costs": m, "Results": pd.Series(self.train_results.flatten()), "Derivative": derivative})
 
         h["Derivative"][(h.Costs != 0.0) & (h.Results == 0.0)] = k
-        h["Derivative"][(h.Costs != 0.0) & (h.Results == 1.1)] = -k
+        h["Derivative"][(h.Costs != 0.0) & (h.Results == 1.0)] = -k
+        h["Derivative"][(h.Costs == 0.0) & (h.Results == 1.0)] = 0
+        h["Derivative"][(h.Costs == 0.0) & (h.Results == 0.0)] = 0
 
-        k = np.reshape(np.array(h.Derivative), [self.train_data.shape[0], 1])
+        k = np.reshape(np.array(h.Derivative), [self.size, 10])
         return np.transpose(np.matmul(np.transpose(k), self.similarities))
 
     def svm_gradient_descent(self, k, b, threshold, alpha):
         print(self.regularised_svm_cost(k, b))
         while self.regularised_svm_cost(k, b) > threshold:
-            self.weights -= self.svm_gradient(k, b) * alpha / self.train_data.shape[0]
-            self.hypothesis = np.matmul(self.similarities, self.weights)
+            self.train_weights -= self.svm_gradient(k, b) * alpha / self.train_data.shape[0]
+            self.hypothesis = np.matmul(self.similarities, self.train_weights)
             print(self.regularised_svm_cost(k, b))
 
-        # results = pd.DataFrame({"Hypothesis": pd.Series(self.hypothesis.flatten()), "Result": pd.Series(np.zeros([self.hypothesis.shape[0]]))})
-        # results.Result[results.Hypothesis >= 1] = 1
         n = 0
         for i in range(self.hypothesis.shape[0]):
 
