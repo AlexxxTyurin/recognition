@@ -28,7 +28,8 @@ if __name__ == '__main__':
 
     # Create an object of SVM class
     a = SVM(train_data, test_data, train_results, test_results, 2, 100)
-    a.svm_gradient_descent(3, 3, 280, 0.0001)
+    print(a.similarities.shape)
+    # a.svm_gradient_descent(3, 3, 10, 0.0001)
     # print(a.regularised_svm_cost(3, 3,))
 
 

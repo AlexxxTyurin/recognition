@@ -31,8 +31,9 @@ if __name__ == '__main__':
     a = NN(train_data, test_data, train_results, test_results, weights)
     # a.mini_batch_back_propagation(10000, 0.001, 200, 100)
 
-    a.get_result(0.001, 50, 100, 0.8)
+    # a.get_result(0.001, 50, 100, 0.8)
 
     # Now we are going to check our results on another test set
     # a.submit(c)
 
+    print(train_data.shape)

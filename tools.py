@@ -309,7 +309,8 @@ class NN:
 
 class SVM:
     def __init__(self, train_data, test_data, train_results, test_results, sigma, size):
-        self.train_data = train_data
+        self.train_data = train_data[size:, :]
+        self.pivot_data = train_data[:size, :]
         self.test_data = test_data
         # self.train_results = train_results[:size, :]
         self.train_results = np.array([np.eye(10)[el, :] for el in train_results[:size, 0]])
@@ -319,7 +320,7 @@ class SVM:
         self.sigma = sigma
         self.size = size
         self.similarities = self.similarities()
-        self.train_hypothesis = np.matmul(self.similarities, self.train_weights)
+        # self.train_hypothesis = np.matmul(self.similarities, self.train_weights)
 
     def right_results(self):
         n = 0
@@ -329,13 +330,18 @@ class SVM:
         return n / self.train_hypothesis.shape[0]
 
     def similarities(self):
-        data = np.array([self.train_data[i, :] for _ in range(self.size) for i in range(self.size)])
-        landmark = np.array([self.train_data[i, :] for i in range(self.size) for _ in range(self.size)])
+        # data = np.array([self.train_data[i, :] for _ in range(self.size) for i in range(self.size)])
+        # landmark = np.array([self.train_data[i, :] for i in range(self.size) for _ in range(self.size)])
+        #
+        # # Secondly, we calculate the similarities vector and then we reshape it
+        # similarities = np.array(
+        #     [sum(np.exp(((data[i, :] - landmark[i, :]) ** 2) / (-2 * self.sigma))) for i in range(data.shape[0])])
+        # similarities = np.reshape(similarities, [self.size, self.size])
 
-        # Secondly, we calculate the similarities vector and then we reshape it
-        similarities = np.array(
-            [sum(np.exp(((data[i, :] - landmark[i, :]) ** 2) / (-2 * self.sigma))) for i in range(data.shape[0])])
-        similarities = np.reshape(similarities, [self.size, self.size])
+        data = np.array([self.train_data[i, :] for _ in range(self.size) for i in range(self.train_data.shape[0])])
+        landmarks = np.array([self.pivot_data[i, :] for i in range(self.size) for _ in range(self.train_data.shape[0])])
+
+        similarities = (data - landmarks) ** 2
         return similarities
 
     def element_svm_positive_cost(self, k, b):
@@ -387,7 +393,7 @@ class SVM:
             self.train_weights -= self.svm_gradient(k, b) * alpha / self.train_data.shape[0]
             self.train_hypothesis = np.matmul(self.similarities, self.train_weights)
             print(f"Epoch: {index}, cost: {self.regularised_svm_cost(k, b)}")
+            index += 1
 
         print(self.right_results())
-        print(self.train_hypothesis)
 
